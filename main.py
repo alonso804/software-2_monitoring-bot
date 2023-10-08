@@ -166,4 +166,6 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         gp.plot(x, y, _with="lines", terminal="dumb 80,40", unset="grid", title="Latency", xlabel="Time", ylabel="Latency (ms)")
 
 
+check_availability("search-api", "2023-10-07", "2023-10-08", "hour")
+check_latency("search-api", "2023-10-07", "2023-10-08", "hour")
 render_graph("search-api", "2023-10-07", "2023-10-08", "hour", "latency")
