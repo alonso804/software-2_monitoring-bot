@@ -31,8 +31,8 @@ def check_latency(module_name, start_time, end_time, group_by, show=True):
         hour=23, minute=59, second=59, microsecond=999999
     )
 
-    logs = []
     log_file = glob.glob(MODULES[module_name])
+    grouped_logs = {}
 
     with open(log_file[0], "r") as file:
         for line in file:
@@ -41,27 +41,22 @@ def check_latency(module_name, start_time, end_time, group_by, show=True):
             timestamp = datetime.strptime(log["timestamp"], DATE_FORMATS["log"])
 
             if start_time <= timestamp <= end_time and "time" in log:
-                logs.append({"timestamp": timestamp, "time": log["time"]})
+                key = ""
 
-    grouped_logs = {}
+                if group_by == "month":
+                    key = timestamp.strftime(GROUP_BY[group_by])
 
-    for log in logs:
-        key = ""
+                if group_by == "day":
+                    key = timestamp.strftime(GROUP_BY[group_by])
 
-        if group_by == "month":
-            key = log["timestamp"].strftime(GROUP_BY[group_by])
+                if group_by == "hour":
+                    key = timestamp.strftime(GROUP_BY[group_by])
 
-        if group_by == "day":
-            key = log["timestamp"].strftime(GROUP_BY[group_by])
-
-        if group_by == "hour":
-            key = log["timestamp"].strftime(GROUP_BY[group_by])
-
-        if key not in grouped_logs:
-            grouped_logs[key] = {"count": 1, "time": log["time"]}
-        else:
-            grouped_logs[key]["count"] += 1
-            grouped_logs[key]["time"] += log["time"]
+                if key not in grouped_logs:
+                    grouped_logs[key] = {"count": 1, "time": log["time"]}
+                else:
+                    grouped_logs[key]["count"] += 1
+                    grouped_logs[key]["time"] += log["time"]
 
     if show:
         for key in grouped_logs:
@@ -80,8 +75,8 @@ def check_availability(module_name, start_time, end_time, group_by, show=True):
         hour=23, minute=59, second=59, microsecond=999999
     )
 
-    logs = []
     log_file = glob.glob(MODULES[module_name])
+    grouped_logs = {}
 
     with open(log_file[0], "r") as file:
         for line in file:
@@ -90,29 +85,24 @@ def check_availability(module_name, start_time, end_time, group_by, show=True):
             timestamp = datetime.strptime(log["timestamp"], DATE_FORMATS["log"])
 
             if start_time <= timestamp <= end_time and "status" in log:
-                logs.append({"timestamp": timestamp, "status": log["status"]})
+                key = ""
 
-    grouped_logs = {}
+                if group_by == "month":
+                    key = timestamp.strftime(GROUP_BY[group_by])
 
-    for log in logs:
-        key = ""
+                if group_by == "day":
+                    key = timestamp.strftime(GROUP_BY[group_by])
 
-        if group_by == "month":
-            key = log["timestamp"].strftime(GROUP_BY[group_by])
+                if group_by == "hour":
+                    key = timestamp.strftime(GROUP_BY[group_by])
 
-        if group_by == "day":
-            key = log["timestamp"].strftime(GROUP_BY[group_by])
+                if key not in grouped_logs:
+                    grouped_logs[key] = {"success": 0, "error": 0}
 
-        if group_by == "hour":
-            key = log["timestamp"].strftime(GROUP_BY[group_by])
-
-        if key not in grouped_logs:
-            grouped_logs[key] = {"success": 0, "error": 0}
-
-        if log["status"] == 200:
-            grouped_logs[key]["success"] += 1
-        else:
-            grouped_logs[key]["error"] += 1
+                if log["status"] == 200:
+                    grouped_logs[key]["success"] += 1
+                else:
+                    grouped_logs[key]["error"] += 1
 
     if show:
         for key in grouped_logs:
