@@ -4,10 +4,24 @@ import json
 from pprint import pprint
 import gnuplotlib as gp
 import numpy as np
+import argparse
+import re
+
+COLORS = {
+    "HEADER": "\033[95m",
+    "OKBLUE": "\033[94m",
+    "OKCYAN": "\033[96m",
+    "OKGREEN": "\033[92m",
+    "WARNING": "\033[93m",
+    "FAIL": "\033[91m",
+    "ENDC": "\033[0m",
+    "BOLD": "\033[1m",
+    "UNDERLINE": "\033[4m",
+}
 
 LOGS_PATH = "logs/app.log"
 
-MODULES = {
+MODULES_LOG_PATH = {
     "search-api": f"../search-api/{LOGS_PATH}",
     "poke-api": f"../poke-api/{LOGS_PATH}",
     "poke-stats": f"../poke-stats/{LOGS_PATH}",
@@ -31,7 +45,7 @@ def check_latency(module_name, start_time, end_time, group_by, show=True):
         hour=23, minute=59, second=59, microsecond=999999
     )
 
-    log_file = glob.glob(MODULES[module_name])
+    log_file = glob.glob(MODULES_LOG_PATH[module_name])
     grouped_logs = {}
 
     with open(log_file[0], "r") as file:
@@ -61,8 +75,10 @@ def check_latency(module_name, start_time, end_time, group_by, show=True):
     if show:
         for key in grouped_logs:
             print(
-                f"{key.replace('T', ' ')}: {grouped_logs[key]['time'] / grouped_logs[key]['count']} ms"
+                COLORS["HEADER"] + f"- {key.replace('T', ' ')}: " + COLORS["ENDC"],
+                end="",
             )
+            print(f"{grouped_logs[key]['time'] / grouped_logs[key]['count']} ms")
 
     return grouped_logs
 
@@ -75,7 +91,7 @@ def check_availability(module_name, start_time, end_time, group_by, show=True):
         hour=23, minute=59, second=59, microsecond=999999
     )
 
-    log_file = glob.glob(MODULES[module_name])
+    log_file = glob.glob(MODULES_LOG_PATH[module_name])
     grouped_logs = {}
 
     with open(log_file[0], "r") as file:
@@ -107,7 +123,11 @@ def check_availability(module_name, start_time, end_time, group_by, show=True):
     if show:
         for key in grouped_logs:
             print(
-                f"{key.replace('T', ' ')}: {grouped_logs[key]['error'] / (grouped_logs[key]['success'] + grouped_logs[key]['error']) * 100}%"
+                COLORS["HEADER"] + f"- {key.replace('T', ' ')}: " + COLORS["ENDC"],
+                end="",
+            )
+            print(
+                f"{grouped_logs[key]['error'] / (grouped_logs[key]['success'] + grouped_logs[key]['error']) * 100}%"
             )
 
     return grouped_logs
@@ -139,9 +159,10 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         x = np.array([i for i in range(len(xy))])
         y = np.array([y["availability"] for y in xy])
 
-        print("Legend:")
+        print(COLORS["HEADER"], "Legend:", COLORS["ENDC"])
         for key, value in legend.items():
-            print(f"- [{key}]: {value}")
+            print(COLORS["HEADER"], f"- [{key}]:", COLORS["ENDC"], end="")
+            print(f"{value} - {y[key]}%")
 
         gp.plot(
             x,
@@ -174,9 +195,10 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         x = np.array([i for i in range(len(xy))])
         y = np.array([y["latency"] for y in xy])
 
-        print("Legend:")
+        print(COLORS["HEADER"], "Legend:", COLORS["ENDC"])
         for key, value in legend.items():
-            print(f"- [{key}]: {value}")
+            print(COLORS["HEADER"], f"- [{key}]:", COLORS["ENDC"], end="")
+            print(f"{value} - {y[key]} ms")
 
         gp.plot(
             x,
@@ -190,13 +212,58 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         )
 
 
-module = "search-api"
-# module = "poke-api"
-# module = "poke-stats"
-# module = "poke-images"
+if __name__ == "__main__":
+    modules = [module for module in MODULES_LOG_PATH]
+    group_by = [group_by for group_by in GROUP_BY]
+    actions = ["availability", "latency", "graph-availability", "graph-latency"]
 
-check_availability(module, "2023-10-07", "2023-10-08", "hour")
-print("-----")
-check_latency(module, "2023-10-07", "2023-10-08", "hour")
-print("-----")
-render_graph(module, "2023-10-07", "2023-10-08", "hour", "latency")
+    parser = argparse.ArgumentParser(description="CLI for log analysis")
+
+    parser.add_argument("-m", "--module", help=f"module name ({', '.join(modules)})")
+    parser.add_argument("-st", "--start_time", help="start time (YYYY-MM-DD)")
+    parser.add_argument("-et", "--end_time", help="end time (YYYY-MM-DD)")
+    parser.add_argument("-gb", "--group_by", help=f"group by ({', '.join(group_by)})")
+    parser.add_argument("-a", "--action", help=f"action ({', '.join(actions)})")
+
+    args = parser.parse_args()
+
+    if args.module not in modules:
+        print(f"Invalid module name ({', '.join(modules)})")
+        exit()
+
+    date_regex = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+    if (
+        re.fullmatch(date_regex, args.start_time) is None
+        or re.fullmatch(date_regex, args.end_time) is None
+    ):
+        print("Invalid start or end time format (YYYY-MM-DD)")
+        exit()
+
+    if args.group_by not in group_by:
+        print(f"Invalid group by ({', '.join(group_by)})")
+        exit()
+
+    if args.action not in actions:
+        print(f"Invalid action ({', '.join(actions)})")
+        exit()
+
+    if args.action == "availability":
+        print(COLORS["OKGREEN"] + "Availability" + COLORS["ENDC"])
+        check_availability(args.module, args.start_time, args.end_time, args.group_by)
+
+    if args.action == "latency":
+        print(COLORS["WARNING"] + "Latency" + COLORS["ENDC"])
+        check_latency(args.module, args.start_time, args.end_time, args.group_by)
+
+    if args.action == "graph-availability":
+        print(COLORS["OKBLUE"] + "Availability" + COLORS["ENDC"])
+        render_graph(
+            args.module, args.start_time, args.end_time, args.group_by, "availability"
+        )
+
+    if args.action == "graph-latency":
+        print(COLORS["OKCYAN"] + "Latency" + COLORS["ENDC"])
+        render_graph(
+            args.module, args.start_time, args.end_time, args.group_by, "latency"
+        )
