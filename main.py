@@ -14,10 +14,7 @@ MODULES = {
     "poke-images": f"../poke-images/{LOGS_PATH}",
 }
 
-DATE_FORMATS = {
-    "input": "%Y-%m-%d",
-    "log": "%Y-%m-%dT%H:%M:%S.%fZ"
-}
+DATE_FORMATS = {"input": "%Y-%m-%d", "log": "%Y-%m-%dT%H:%M:%S.%fZ"}
 
 GROUP_BY = {
     "month": "%Y-%m",
@@ -27,8 +24,12 @@ GROUP_BY = {
 
 
 def check_latency(module_name, start_time, end_time, group_by, show=True):
-    start_time = datetime.strptime(start_time, DATE_FORMATS["input"]).replace(hour=0, minute=0, second=0, microsecond=0)
-    end_time = datetime.strptime(end_time, DATE_FORMATS["input"]).replace(hour=23, minute=59, second=59, microsecond=999999)
+    start_time = datetime.strptime(start_time, DATE_FORMATS["input"]).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    end_time = datetime.strptime(end_time, DATE_FORMATS["input"]).replace(
+        hour=23, minute=59, second=59, microsecond=999999
+    )
 
     logs = []
     log_file = glob.glob(MODULES[module_name])
@@ -40,7 +41,7 @@ def check_latency(module_name, start_time, end_time, group_by, show=True):
             timestamp = datetime.strptime(log["timestamp"], DATE_FORMATS["log"])
 
             if start_time <= timestamp <= end_time and "time" in log:
-                logs.append({ "timestamp": timestamp, "time": log["time"] })
+                logs.append({"timestamp": timestamp, "time": log["time"]})
 
     grouped_logs = {}
 
@@ -57,20 +58,27 @@ def check_latency(module_name, start_time, end_time, group_by, show=True):
             key = log["timestamp"].strftime(GROUP_BY[group_by])
 
         if key not in grouped_logs:
-            grouped_logs[key] = log["time"]
+            grouped_logs[key] = {"count": 1, "time": log["time"]}
         else:
-            grouped_logs[key] += log["time"]
+            grouped_logs[key]["count"] += 1
+            grouped_logs[key]["time"] += log["time"]
 
     if show:
         for key in grouped_logs:
-            print(f"{key.replace('T', ' ')}: {grouped_logs[key]} ms")
+            print(
+                f"{key.replace('T', ' ')}: {grouped_logs[key]['time'] / grouped_logs[key]['count']} ms"
+            )
 
     return grouped_logs
 
 
 def check_availability(module_name, start_time, end_time, group_by, show=True):
-    start_time = datetime.strptime(start_time, DATE_FORMATS["input"]).replace(hour=0, minute=0, second=0, microsecond=0)
-    end_time = datetime.strptime(end_time, DATE_FORMATS["input"]).replace(hour=23, minute=59, second=59, microsecond=999999)
+    start_time = datetime.strptime(start_time, DATE_FORMATS["input"]).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    end_time = datetime.strptime(end_time, DATE_FORMATS["input"]).replace(
+        hour=23, minute=59, second=59, microsecond=999999
+    )
 
     logs = []
     log_file = glob.glob(MODULES[module_name])
@@ -82,7 +90,7 @@ def check_availability(module_name, start_time, end_time, group_by, show=True):
             timestamp = datetime.strptime(log["timestamp"], DATE_FORMATS["log"])
 
             if start_time <= timestamp <= end_time and "status" in log:
-                logs.append({ "timestamp": timestamp, "status": log["status"] })
+                logs.append({"timestamp": timestamp, "status": log["status"]})
 
     grouped_logs = {}
 
@@ -99,10 +107,7 @@ def check_availability(module_name, start_time, end_time, group_by, show=True):
             key = log["timestamp"].strftime(GROUP_BY[group_by])
 
         if key not in grouped_logs:
-            grouped_logs[key] = {
-                "success": 0,
-                "error": 0
-            }
+            grouped_logs[key] = {"success": 0, "error": 0}
 
         if log["status"] == 200:
             grouped_logs[key]["success"] += 1
@@ -111,7 +116,9 @@ def check_availability(module_name, start_time, end_time, group_by, show=True):
 
     if show:
         for key in grouped_logs:
-            print(f"{key.replace('T', ' ')}: {grouped_logs[key]['success'] / (grouped_logs[key]['success'] + grouped_logs[key]['error']) * 100}%")
+            print(
+                f"{key.replace('T', ' ')}: {grouped_logs[key]['error'] / (grouped_logs[key]['success'] + grouped_logs[key]['error']) * 100}%"
+            )
 
     return grouped_logs
 
@@ -123,7 +130,14 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         xy = []
 
         for key in data:
-            xy.append({ "timestamp": key, "availability": data[key]["success"] / (data[key]["success"] + data[key]["error"]) * 100 })
+            xy.append(
+                {
+                    "timestamp": key,
+                    "availability": data[key]["error"]
+                    / (data[key]["success"] + data[key]["error"])
+                    * 100,
+                }
+            )
 
         xy = sorted(xy, key=lambda k: k["timestamp"])
 
@@ -139,7 +153,16 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         for key, value in legend.items():
             print(f"- [{key}]: {value}")
 
-        gp.plot(x, y, _with="lines", terminal="dumb 80,40", unset="grid", title="Availability", xlabel="Time", ylabel="Availability (%)")
+        gp.plot(
+            x,
+            y,
+            _with="lines",
+            terminal="dumb 80,40",
+            unset="grid",
+            title="Availability",
+            xlabel="Time",
+            ylabel="Availability (%)",
+        )
 
     if action == "latency":
         data = check_latency(module_name, start_time, end_time, group_by, False)
@@ -147,7 +170,9 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         xy = []
 
         for key in data:
-            xy.append({ "timestamp": key, "latency": data[key] })
+            xy.append(
+                {"timestamp": key, "latency": data[key]["time"] / data[key]["count"]}
+            )
 
         xy = sorted(xy, key=lambda k: k["timestamp"])
 
@@ -163,9 +188,25 @@ def render_graph(module_name, start_time, end_time, group_by, action):
         for key, value in legend.items():
             print(f"- [{key}]: {value}")
 
-        gp.plot(x, y, _with="lines", terminal="dumb 80,40", unset="grid", title="Latency", xlabel="Time", ylabel="Latency (ms)")
+        gp.plot(
+            x,
+            y,
+            _with="lines",
+            terminal="dumb 80,40",
+            unset="grid",
+            title="Latency",
+            xlabel="Time",
+            ylabel="Latency (ms)",
+        )
 
 
-check_availability("search-api", "2023-10-07", "2023-10-08", "hour")
-check_latency("search-api", "2023-10-07", "2023-10-08", "hour")
-render_graph("search-api", "2023-10-07", "2023-10-08", "hour", "latency")
+module = "search-api"
+# module = "poke-api"
+# module = "poke-stats"
+# module = "poke-images"
+
+check_availability(module, "2023-10-07", "2023-10-08", "hour")
+print("-----")
+check_latency(module, "2023-10-07", "2023-10-08", "hour")
+print("-----")
+render_graph(module, "2023-10-07", "2023-10-08", "hour", "latency")
